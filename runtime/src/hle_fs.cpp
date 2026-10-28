@@ -376,6 +376,22 @@ uint64_t read_at(const File& file, int64_t off, uint64_t buf, uint64_t size) {
         uint64_t k = ++reads[file.path];
         if (k <= 3 || k % 50 == 0) log("fs: stream read #%llu %s at %lld", (unsigned long long)k, file.path.c_str(), (long long)off);
     }
+    {   // Per-second read statistics (diagnostic): is the game starved by file reads?
+        static std::mutex sm;
+        static uint64_t last = plat::monotonic_ns(), reads = 0, bytes = 0, ns = 0, maxns = 0, over5 = 0;
+        static std::string slowest;
+        uint64_t spent = plat::monotonic_ns() - t0, now = plat::monotonic_ns();
+        std::lock_guard lk(sm);
+        reads++, bytes += n, ns += spent, over5 += spent >= 5'000'000;
+        if (spent > maxns) maxns = spent, slowest = file.path;
+        if (now - last >= 1'000'000'000ull) {
+            log("fs: io per s: %llu reads, %.2f MB, %llu ms in reads (%llu over 5 ms), slowest %.1f ms (%s)",
+                (unsigned long long)reads, bytes / 1048576.0, (unsigned long long)(ns / 1'000'000),
+                (unsigned long long)over5, maxns / 1e6, slowest.c_str());
+            last = now, reads = bytes = ns = maxns = over5 = 0;
+            slowest.clear();
+        }
+    }
     if (ms >= 30)
         log("fs: slow read %s: %llu bytes at %lld took %llu ms", file.path.c_str(), (unsigned long long)size,
             (long long)off, (unsigned long long)ms);
