@@ -38,6 +38,23 @@ struct Out {
 };
 Out g_out;
 
+void write_wav(const char* path, const std::vector<int16_t>& pcm);
+
+// NX_AUDIOOUT_DUMP=<file.wav>: what the game hands to AudioOut, in the order it hands it (silent buffers included),
+// from the first sound for 20 s of audio: to hear whether the game itself produces the sound slowed down.
+void out_dump(const int16_t* pcm, uint64_t n, int peak) {
+    static const char* path = std::getenv("NX_AUDIOOUT_DUMP");
+    static std::vector<int16_t> dump;
+    static bool done = false;
+    if (!path || done || !pcm || (dump.empty() && peak == 0)) return;
+    dump.insert(dump.end(), pcm, pcm + n);
+    if (dump.size() >= 48000ull * 2 * 20) {
+        write_wav(path, dump);
+        done = true;
+        dump = {};
+    }
+}
+
 // Peak and silence of one appended s16 buffer, logged every 1000 buffers (P5R's CRI mixer had no sound at first).
 void out_stats(uint64_t buf) {
     const int16_t* pcm = reinterpret_cast<const int16_t*>(ld<uint64_t>(buf));
@@ -45,6 +62,7 @@ void out_stats(uint64_t buf) {
     int peak = 0;
     for (uint64_t k = 0; pcm && k < n; k++) peak = std::max(peak, std::abs(int(pcm[k])));
     if (g_out.buffers == 0) log("audio: first AudioOut buffer, %llu bytes", (unsigned long long)(n * 2));
+    out_dump(pcm, n, peak);
     g_out.peak = std::max(g_out.peak, peak);
     g_out.silent += peak == 0;
     {   // Rate at which the game hands over audio (real time at 2048 bytes per buffer needs 93.75 a second).

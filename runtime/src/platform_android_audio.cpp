@@ -132,6 +132,9 @@ bool audio_open(AudioDone done) {
     bool ok = AAudioStreamBuilder_openStream(b, &g_stream) == AAUDIO_OK && AAudioStream_requestStart(g_stream) == AAUDIO_OK;
     AAudioStreamBuilder_delete(b);
     if (ok)
+        nx::log("audio: AAudio stream runs at %d Hz, %d channels", int(AAudioStream_getSampleRate(g_stream)),
+                int(AAudioStream_getChannelCount(g_stream)));
+    if (ok)
         nx::log("audio: AAudio stream: %d frames per burst, buffer %d of %d frames, performance mode %d",
                 int(AAudioStream_getFramesPerBurst(g_stream)), int(AAudioStream_getBufferSizeInFrames(g_stream)),
                 int(AAudioStream_getBufferCapacityInFrames(g_stream)), int(AAudioStream_getPerformanceMode(g_stream)));
