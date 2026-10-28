@@ -47,6 +47,16 @@ void out_stats(uint64_t buf) {
     if (g_out.buffers == 0) log("audio: first AudioOut buffer, %llu bytes", (unsigned long long)(n * 2));
     g_out.peak = std::max(g_out.peak, peak);
     g_out.silent += peak == 0;
+    {   // Rate at which the game hands over audio (real time at 2048 bytes per buffer needs 93.75 a second).
+        static uint64_t t0 = plat::monotonic_ns(), n0 = 0;
+        n0++;
+        uint64_t now = plat::monotonic_ns();
+        if (now - t0 >= 5'000'000'000ull) {
+            log("audio: game appends %.1f buffers/s of %.0f bytes avg (real time: %.1f/s for 2048)",
+                n0 * 1e9 / double(now - t0), double(n * 2), kBytesPerSecond / 2048.0);
+            t0 = now, n0 = 0;
+        }
+    }
     if (++g_out.buffers % 1000 == 0) {
         log("audio: AudioOut: peak %d, %llu of 1000 buffers silent", g_out.peak, (unsigned long long)g_out.silent);
         g_out.peak = 0, g_out.silent = 0;

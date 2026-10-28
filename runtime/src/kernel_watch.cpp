@@ -111,6 +111,20 @@ static void watchdog(void*) {
             bool ok = plat::profile(tids.data(), lrs.data(), tids.size(), seconds, plat::data_root() + "/profile.txt");
             log("profile: %s", ok ? "written to profile.txt" : "not available on this platform");
         }
+        // Host timer health, every 10 s: do short sleeps take as long as asked, and does the guest tick run at 19.2 MHz?
+        static uint64_t timer_probe = 0;
+        if (++timer_probe % 10 == 1) {
+            uint64_t ns0 = plat::monotonic_ns(), tk0 = system_tick(), worst = 0, total = 0;
+            for (int k = 0; k < 50; k++) {
+                uint64_t a = plat::monotonic_ns();
+                plat::sleep_ns(1'000'000);
+                uint64_t d = plat::monotonic_ns() - a;
+                total += d, worst = std::max(worst, d);
+            }
+            uint64_t ns1 = plat::monotonic_ns(), tk1 = system_tick();
+            log("timer: a 1 ms sleep takes %.2f ms on average (worst %.2f); guest tick runs at %.3f MHz",
+                total / 50e6, worst / 1e6, double(tk1 - tk0) * 1000.0 / double(ns1 - ns0));
+        }
         uint64_t f = g_frame, now = plat::monotonic_ns();
         if (f != last || plat::window_minimized()) {
             last = f;
